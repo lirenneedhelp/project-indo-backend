@@ -1,9 +1,15 @@
+import os
+from dotenv import load_dotenv
 import requests
+
+# Load environment variables from .env file
+load_dotenv()
 
 # 1. Your Supabase API Credentials
 # Replace these with your actual URL and Anon Key!
-SUPABASE_URL = "https://pmxvnyaqscomvrzhekaw.supabase.co" # (I grabbed this from your previous message!)
-SUPABASE_KEY = "sb_secret_-SfXnSI2yUmeSngpOrpKVg_MUeYb2At"
+SUPABASE_URL =  os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY") 
+
 
 def save_invoice_to_db(invoice_data):
     print("☁️ Sending data to Supabase via API...")
