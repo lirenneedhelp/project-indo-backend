@@ -149,3 +149,27 @@ def update_invoice_in_db(invoice_id, new_invoice_data):
     }
     response = requests.patch(url, headers=headers, json=data)
     return response.json()
+
+def get_invoice_by_id(invoice_id):
+    """Fetches a single invoice perfectly for PDF generation."""
+    url = f"{SUPABASE_URL}/rest/v1/invoices?id=eq.{invoice_id}&select=*"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200 and len(response.json()) > 0:
+        return response.json()[0] # Return the exact invoice dictionary
+    return {"error": "Invoice not found"}
+
+def get_approved_invoices():
+    """Fetches all invoices that the Owner has approved and are ready to print."""
+    url = f"{SUPABASE_URL}/rest/v1/invoices?status=eq.approved&select=*"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    return []

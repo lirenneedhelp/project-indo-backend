@@ -1,11 +1,9 @@
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from database import (
-    save_invoice_to_db, approve_invoice_in_db, get_all_products, 
-    get_pending_invoices, reject_invoice_in_db, get_rejected_invoices, update_invoice_in_db
-)
+from database import *
 from pydantic import BaseModel
 from typing import List
+import requests
 
 app = FastAPI()
 
@@ -17,34 +15,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.patch("/approve-invoice/{invoice_id}")
-def approve_invoice(
-    invoice_id: int, 
-    x_user_role: str = Header(default="sales") # FastAPI automatically looks for this Header!
-):
-    """
-    This endpoint checks the user's role before allowing an approval.
-    """
-    
-    # 1. THE BOUNCER LOGIC
-    if x_user_role != "owner":
-        # If they aren't the owner, we kick them out with a 403 Forbidden error
-        raise HTTPException(
-            status_code=403, 
-            detail="🛑 Sales team cannot approve invoices."
-        )
-    
-    # 2. IF APPROVED, UPDATE THE DATABASE
-    success = approve_invoice_in_db(invoice_id)
-    
-    if not success:
-        raise HTTPException(status_code=500, detail="Database update failed.")
-        
-    return {
-        "status": "success", 
-        "message": f"Invoice #{invoice_id} has been officially APPROVED by the Owner."
-    }
+# Create a blueprint for login credentials
+class LoginCredentials(BaseModel):
+    email: str
+    password: str
 
+@app.post("/login")
+def login_user(credentials: LoginCredentials):
+    """Takes email/password and gets a secure token from Supabase."""
+    url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/json"
+    }
+    data = {"email": credentials.email, "password": credentials.password}
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        return response.json() # This hands the secure token back to the website!
+    else:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    
+def verify_real_owner(request: Request):
+    """The Real Bouncer: Checks if the token is mathematically valid via Supabase."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bouncer says: No secure ID provided.")
+    
+    # Extract the token from the "Bearer <token>" string
+    token = auth_header.split(" ")[1]
+    
+    # Ask the Supabase Auth server if this token is legit
+    url = f"{SUPABASE_URL}/auth/v1/user"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {token}"
+    }
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code != 200:
+        raise HTTPException(status_code=401, detail="Bouncer says: Fake or expired ID. Access Denied.")
+    
 @app.get("/products")
 def fetch_catalog():
     """API Endpoint for the frontend to get the catalog."""
@@ -88,13 +100,21 @@ def fetch_pending():
     invoices = get_pending_invoices()
     return {"status": "success", "data": invoices}
 
+@app.patch("/approve-invoice/{invoice_id}")
+def approve_invoice(invoice_id: int, request: Request):
+    # 1. checks the ID first
+    verify_real_owner(request)
+    
+    # 2. if passed, approve it!
+    approve_invoice_in_db(invoice_id)
+    return {"status": "success", "message": "Invoice approved and locked! 🔒"}
+
 @app.patch("/reject-invoice/{invoice_id}")
 def reject_invoice(invoice_id: int, request: Request):
-    """The Bouncer ensures only the Owner can reject."""
-    role = request.headers.get("x-user-role")
-    if role != "owner":
-        raise HTTPException(status_code=403, detail="Bouncer says: Only the owner can reject invoices.")
+    # 1. checks the ID first
+    verify_real_owner(request)
     
+    # 2. If passed, reject it!
     reject_invoice_in_db(invoice_id)
     return {"status": "success", "message": "Invoice rejected and sent back to Sales."}
 
@@ -110,3 +130,17 @@ def update_invoice(invoice_id: int, payload: InvoicePayload):
     invoice_data = payload.dict()
     update_invoice_in_db(invoice_id, invoice_data)
     return {"status": "success", "message": "Invoice revised and resubmitted to Owner!"}
+
+@app.get("/invoice/{invoice_id}")
+def fetch_single_invoice(invoice_id: int):
+    """Retrieves one specific invoice for the PDF Generator."""
+    invoice = get_invoice_by_id(invoice_id)
+    if "error" in invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return {"status": "success", "data": invoice}
+
+@app.get("/approved-invoices")
+def fetch_approved():
+    """Endpoint for the Owner to see printable invoices."""
+    invoices = get_approved_invoices()
+    return {"status": "success", "data": invoices}

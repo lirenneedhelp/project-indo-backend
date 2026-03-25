@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice | Go Cargo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* This forces the browser to treat this page exactly like an A4 piece of paper when printing */
+        @media print {
+            body { background-color: white; }
+            .no-print { display: none !important; }
+            .a4-page { box-shadow: none !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
+            @page { size: A4; margin: 10mm; }
+        }
+    </style>
+</head>
+<body class="bg-gray-200 font-sans text-sm text-gray-800 py-8" onload="loadInvoiceData()">
+
+    <div class="max-w-[21cm] mx-auto mb-4 flex justify-between items-center no-print">
+        <p class="text-gray-600 text-sm">💡 <span class="font-bold">Pro Tip:</span> Click on the Customer Name or Dates to edit them before printing.</p>
+        <button onclick="window.print()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded shadow flex items-center gap-2">
+            🖨️ Save as PDF / Print
+        </button>
+    </div>
+
+    <div class="a4-page max-w-[21cm] min-h-[29.7cm] mx-auto bg-white p-10 shadow-xl relative">
+        
+        <div class="flex justify-between items-start mb-8">
+            <div>
+                <img src="img/logo.png" alt="Go Cargo Logo" class="h-28 w-auto object-contain mb-4">
+                <p class="text-xs text-gray-500 max-w-[250px]">
+                    Jalan jembatan dua raya no. 5D<br>
+                    Pejagalan, Penjaringan, Jakarta Utara<br>
+                    DKI Jakarta 14450
+                </p>
+            </div>
+            <div class="text-right">
+                <h2 class="text-4xl font-bold text-gray-200 tracking-widest mb-2">INVOICE</h2>
+                <p class="font-bold text-gray-800 text-lg">INV-MARCO-<span id="invNumber">...</span></p>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-end mb-8 border-b-2 border-green-600 pb-4">
+            <div>
+                <p class="text-xs text-gray-400 font-bold mb-1">BILL TO:</p>
+                <p class="font-bold text-lg outline-none hover:bg-yellow-50 focus:bg-yellow-100 transition" contenteditable="true">Click to enter Client Name</p>
+                <p class="text-sm outline-none hover:bg-yellow-50 focus:bg-yellow-100 transition" contenteditable="true">Click to enter Phone/Address</p>
+            </div>
+            <table class="text-sm text-right">
+                <tr>
+                    <td class="pr-4 font-bold text-gray-500">INVOICE DATE:</td>
+                    <td class="font-medium outline-none hover:bg-yellow-50" contenteditable="true" id="invDate">Today</td>
+                </tr>
+                <tr>
+                    <td class="pr-4 font-bold text-gray-500">DUE DATE:</td>
+                    <td class="font-medium outline-none hover:bg-yellow-50" contenteditable="true">Tomorrow</td>
+                </tr>
+            </table>
+        </div>
+
+        <table class="w-full text-left border-collapse mb-6">
+            <thead>
+                <tr class="bg-green-600 text-white text-xs">
+                    <th class="p-2 border border-green-700">No.</th>
+                    <th class="p-2 border border-green-700 w-2/5">Item</th>
+                    <th class="p-2 border border-green-700 text-center">Price/pcs (RMB)</th>
+                    <th class="p-2 border border-green-700 text-center">Qty (pcs)</th>
+                    <th class="p-2 border border-green-700 text-right">Total (RMB)</th>
+                    <th class="p-2 border border-green-700 text-right">Total (Rp)</th>
+                </tr>
+            </thead>
+            <tbody id="invoiceTableBody">
+                <tr><td colspan="6" class="text-center p-4 text-gray-400">⏳ Loading data from server...</td></tr>
+            </tbody>
+        </table>
+
+        <div class="flex justify-end mb-8">
+            <table class="w-1/2 text-right text-sm">
+                <tr>
+                    <td class="p-2 text-gray-600">Subtotal:</td>
+                    <td class="p-2 font-medium" id="subtotalRp">0</td>
+                </tr>
+                <tr>
+                    <td class="p-2 text-gray-600 border-b">Service fee (10%):</td>
+                    <td class="p-2 font-medium border-b" id="feeRp">0</td>
+                </tr>
+                <tr class="text-lg font-bold text-green-700">
+                    <td class="p-2">Total:</td>
+                    <td class="p-2" id="totalRp">0</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="mb-12 border border-gray-200 p-4 rounded bg-gray-50 w-2/3">
+            <h3 class="text-xs font-bold text-gray-400 mb-2 tracking-wider">PAYMENT METHOD</h3>
+            <table class="text-sm font-medium text-gray-800">
+                <tr><td class="pr-4 pb-1">Bank:</td><td>Bank Central Asia (BCA)</td></tr>
+                <tr><td class="pr-4 pb-1">Account Name:</td><td>PETER LEONARDI LYMAN</td></tr>
+                <tr><td class="pr-4">Account Number:</td><td>478-035-5251</td></tr>
+            </table>
+        </div>
+
+        <div class="text-[10px] text-gray-500 leading-tight border-t pt-4">
+            <h4 class="font-bold text-gray-700 mb-2">TERMS AND CONDITIONS</h4>
+            <ol class="list-decimal pl-4 space-y-1">
+                <li>Setiap pengiriman barang wajib melampirkan foto barang, packing list, invoice pembelian barang, dan resi pengiriman menuju Gudang China kami kepada CS kami.</li>
+                <li>Setiap pengiriman barang wajib konfirmasi alamat gudang China dan marking code dengan CS kami.</li>
+                <li>Barang yang dikirim ke Gudang China kami wajib ada marking code yang ditempel pada setiap packing outer box. Paket tanpa marking code akan ditolak.</li>
+                <li>Apabila customer menggunakan jasa Go Cargo untuk pembelian barang dan ingin cancel PO, uang akan dikembalikan sesuai dengan nilai harga barang saja, service fee tidak kembali.</li>
+                <li>Estimasi waktu pengiriman China SEA 4-6 minggu, China AIR 8-12 hari terhitung setelah barang masuk ke Gudang China kami.</li>
+                <li>Harga pengiriman yang tertera adalah estimasi, bisa berubah sesuai dengan hasil pengukuran ulang volume dan berat real sampainya barang di Indonesia.</li>
+                <li>Pembayaran jasa Go Cargo: Pembayaran invoice order dilakukan setelah customer setuju; invoice shipping setelah barang tiba di Gudang Jakarta (Maksimal 7 hari, denda Rp 50.000/koli per hari).</li>
+            </ol>
+            <p class="text-center mt-6 text-green-600 font-bold">+62 822-4980-4624 | info@gocargo.co.id</p>
+        </div>
+    </div>
+
+    <script>
+        async function loadInvoiceData() {
+            // 1. Get the invoice ID from the URL (e.g., invoice.html?id=5)
+            const urlParams = new URLSearchParams(window.location.search);
+            const invoiceId = urlParams.get('id');
+
+            if (!invoiceId) {
+                document.getElementById('invoiceTableBody').innerHTML = '<tr><td colspan="6" class="text-center p-4 text-red-500 font-bold">❌ No Invoice ID provided in the URL.</td></tr>';
+                return;
+            }
+
+            try {
+                // 2. Fetch the specific invoice from FastAPI
+                const res = await fetch(`http://127.0.0.1:8000/invoice/${invoiceId}`);
+                const result = await res.json();
+
+                if (!res.ok) throw new Error("Invoice not found");
+
+                const data = result.data.invoice_data;
+                const rate = data.exchange_rate_used;
+
+                // 3. Populate Header Data
+                document.getElementById('invNumber').innerText = result.data.id.toString().padStart(4, '0'); // Pads to "0005"
+                
+                const today = new Date();
+                document.getElementById('invDate').innerText = today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                // 4. Populate Table Rows
+                const tbody = document.getElementById('invoiceTableBody');
+                tbody.innerHTML = '';
+                
+                data.items.forEach((item, index) => {
+                    const totalRmb = item.price_cny * item.qty;
+                    const totalRp = totalRmb * rate;
+
+                    tbody.innerHTML += `
+                        <tr class="border-b border-gray-100">
+                            <td class="p-2 text-center text-gray-500">${index + 1}</td>
+                            <td class="p-2 font-medium text-gray-800">${item.name}</td>
+                            <td class="p-2 text-center text-gray-600">${item.price_cny.toLocaleString('id-ID')}</td>
+                            <td class="p-2 text-center font-bold text-gray-800">${item.qty}</td>
+                            <td class="p-2 text-right text-gray-600">${totalRmb.toLocaleString('id-ID')}</td>
+                            <td class="p-2 text-right text-gray-800">${totalRp.toLocaleString('id-ID')}</td>
+                        </tr>
+                    `;
+                });
+
+                // 5. Populate Totals
+                document.getElementById('subtotalRp').innerText = data.subtotal_idr.toLocaleString('id-ID');
+                document.getElementById('feeRp').innerText = data.service_fee_idr.toLocaleString('id-ID');
+                document.getElementById('totalRp').innerText = data.final_total_idr.toLocaleString('id-ID');
+
+            } catch (error) {
+                document.getElementById('invoiceTableBody').innerHTML = `<tr><td colspan="6" class="text-center p-4 text-red-500 font-bold">❌ Failed to load invoice #${invoiceId}</td></tr>`;
+            }
+        }
+    </script>
+</body>
+</html>
