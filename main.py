@@ -84,7 +84,7 @@ def submit_cart_invoice(payload: InvoicePayload):
     """Catches the cart data from the frontend and saves it to Supabase."""
     
     # Convert the Pydantic model into a standard Python dictionary
-    invoice_data = payload.dict()
+    invoice_data = payload.model_dump()  
     
     # Save it to Supabase (using the function we built yesterday!)
     result = save_invoice_to_db(invoice_data)
@@ -127,7 +127,7 @@ def fetch_rejected():
 @app.put("/update-invoice/{invoice_id}")
 def update_invoice(invoice_id: int, payload: InvoicePayload):
     """Catches the fixed cart data and overwrites the old invoice."""
-    invoice_data = payload.dict()
+    invoice_data = payload.model_dump()
     update_invoice_in_db(invoice_id, invoice_data)
     return {"status": "success", "message": "Invoice revised and resubmitted to Owner!"}
 
@@ -144,3 +144,4 @@ def fetch_approved():
     """Endpoint for the Owner to see printable invoices."""
     invoices = get_approved_invoices()
     return {"status": "success", "data": invoices}
+
