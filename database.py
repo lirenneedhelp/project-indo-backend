@@ -15,7 +15,7 @@ def save_invoice_to_db(invoice_data):
     print("☁️ Sending data to Supabase via API...")
     
     # We target the specific table we created: 'invoices'
-    endpoint = f"{SUPABASE_URL}/rest/v1/invoicedb"
+    endpoint = f"{SUPABASE_URL}/rest/v1/invoices"
     
     # 2. Set up our security badges
     headers = {
@@ -50,7 +50,7 @@ def approve_invoice_in_db(invoice_id):
     
     # Notice the end of the URL: ?id=eq.{invoice_id}
     # This tells Supabase exactly WHICH row to update (id equals X)
-    endpoint = f"{SUPABASE_URL}/rest/v1/invoicedb?id=eq.{invoice_id}"
+    endpoint = f"{SUPABASE_URL}/rest/v1/invoices?id=eq.{invoice_id}"
     
     headers = {
         "apikey": SUPABASE_KEY,
@@ -73,3 +73,79 @@ def approve_invoice_in_db(invoice_id):
     except requests.exceptions.RequestException as e:
         print(f"❌ Failed to update Supabase: {e}")
         return False
+
+def get_all_products():
+    """Fetches the entire product catalog from Supabase."""
+    url = f"{SUPABASE_URL}/rest/v1/products?select=*"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}"
+    }
+    
+    # We use requests.get() instead of post() because we are reading, not writing!
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        return response.json() # Returns a list of dictionaries (your products)
+    else:
+        print(f"Error fetching products: {response.text}")
+        return []
+
+def get_pending_invoices():
+    """Fetches all invoices waiting for owner approval."""
+    # Notice the query parameter: status=eq.waiting_for_approval
+    url = f"{SUPABASE_URL}/rest/v1/invoices?status=eq.waiting_for_approval&select=*"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}"
+    }
+    
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error fetching pending invoices: {response.text}")
+        return []
+
+def reject_invoice_in_db(invoice_id):
+    """Updates an invoice status to 'rejected'."""
+    url = f"{SUPABASE_URL}/rest/v1/invoices?id=eq.{invoice_id}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+    data = {"status": "rejected"}
+    response = requests.patch(url, headers=headers, json=data)
+    return response.json()
+
+def get_rejected_invoices():
+    """Fetches all invoices that need revision by the sales team."""
+    url = f"{SUPABASE_URL}/rest/v1/invoices?status=eq.rejected&select=*"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    return []
+
+def update_invoice_in_db(invoice_id, new_invoice_data):
+    """Overwrites an existing invoice and sends it back for approval."""
+    url = f"{SUPABASE_URL}/rest/v1/invoices?id=eq.{invoice_id}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+    # Notice we change the status back to 'waiting_for_approval' so the owner sees it again!
+    data = {
+        "invoice_data": new_invoice_data,
+        "status": "waiting_for_approval"
+    }
+    response = requests.patch(url, headers=headers, json=data)
+    return response.json()
