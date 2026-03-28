@@ -4,12 +4,17 @@ from database import *
 from pydantic import BaseModel
 from typing import List
 import requests
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+WEBSITE_URL = os.getenv("NETLIFY_URL","http://127.0.0.1:8000")  # This is the URL of your frontend website
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, we restrict this. In the sandbox, let everyone in!
+    allow_origins=[f"{WEBSITE_URL}"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
