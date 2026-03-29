@@ -24,7 +24,7 @@ def save_invoice_to_db(invoice_data):
         "Content-Type": "application/json",
         "Prefer": "return=minimal" # Tells Supabase we just want a success code back
     }
-    
+
     # 3. Format the data to match your database column (invoice_data)
     payload = {
         "invoice_data": invoice_data
@@ -173,3 +173,53 @@ def get_approved_invoices():
     if response.status_code == 200:
         return response.json()
     return []
+
+def add_product_to_db(name, price_cny):
+    """Adds a new item to the product catalog."""
+    url = f"{SUPABASE_URL}/rest/v1/products"
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
+    payload = {"product_name": name, "price_cny": price_cny}
+    response = requests.post(url, headers=headers, json=payload)
+    return response.status_code == 201
+
+def delete_product_from_db(product_id):
+    """Removes an item from the catalog."""
+    url = f"{SUPABASE_URL}/rest/v1/products?id=eq.{product_id}"
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+    response = requests.delete(url, headers=headers)
+    return response.status_code == 204
+
+def add_customer_to_db(name):
+    """Adds a new customer name to the CRM list."""
+    url = f"{SUPABASE_URL}/rest/v1/customers"
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
+    payload = {"name": name}
+    response = requests.post(url, headers=headers, json=payload)
+    return response.status_code == 201
+
+def get_customers_with_counts():
+    """Fetches customers and dynamically counts their approved invoices."""
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+    
+    # 1. Get the list of names
+    customers_res = requests.get(f"{SUPABASE_URL}/rest/v1/customers?select=*", headers=headers)
+    if customers_res.status_code != 200: return []
+    customers = customers_res.json()
+
+    # 2. Get all APPROVED invoices to count them
+    invoices_res = requests.get(f"{SUPABASE_URL}/rest/v1/invoices?status=eq.approved&select=invoice_data", headers=headers)
+    invoices = invoices_res.json() if invoices_res.status_code == 200 else []
+
+    # 3. Tally up the purchases
+    purchase_counts = {}
+    for inv in invoices:
+        # We look inside the JSON payload for the customer's name
+        c_name = inv.get("invoice_data", {}).get("customer_name")
+        if c_name:
+            purchase_counts[c_name] = purchase_counts.get(c_name, 0) + 1
+
+    # 4. Attach the count to the customer data
+    for c in customers:
+        c["purchase_count"] = purchase_counts.get(c["name"], 0)
+        
+    return customers

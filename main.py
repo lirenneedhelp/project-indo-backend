@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-WEBSITE_URL = os.getenv("NETLIFY_URL")  # This is the URL of your frontend website
+# Load url from .env
+WEBSITE_URL = os.getenv("NETLIFY_URL", "http://localhost:8000")
 
 app = FastAPI()
 
@@ -20,47 +21,88 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create a blueprint for login credentials
+# Create a class for login credentials
 class LoginCredentials(BaseModel):
     email: str
     password: str
 
-@app.post("/login")
-def login_user(credentials: LoginCredentials):
-    """Takes email/password and gets a secure token from Supabase."""
-    url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
-    headers = {
-        "apikey": SUPABASE_KEY,
+@app.post("/register")
+def register_user(credentials: LoginCredentials):
+    """Registers a new employee and automatically assigns them the 'sales' role."""
+    
+    # 1. Tell Supabase Auth to create the secure user credentials
+    url = f"{SUPABASE_URL}/auth/v1/signup"
+    headers = {"apikey": SUPABASE_KEY, "Content-Type": "application/json"}
+    data = {"email": credentials.email, "password": credentials.password}
+    res = requests.post(url, headers=headers, json=data)
+    
+    if res.status_code != 200:
+        raise HTTPException(status_code=400, detail="Registration failed. Email may already be in use.")
+        
+    # 2. Add their email to our profiles table with the default 'sales' role
+    profile_url = f"{SUPABASE_URL}/rest/v1/profiles"
+    profile_headers = {
+        "apikey": SUPABASE_KEY, 
+        "Authorization": f"Bearer {SUPABASE_KEY}", 
         "Content-Type": "application/json"
     }
+    profile_data = {"email": credentials.email, "role": "sales"}
+    requests.post(profile_url, headers=profile_headers, json=profile_data)
+    
+    return {"status": "success", "message": "Registration successful! You can now log in."}
+
+
+@app.post("/login")
+def login_user(credentials: LoginCredentials):
+    """Logs the user in AND checks if they are an Owner or Sales."""
+    url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
+    headers = {"apikey": SUPABASE_KEY, "Content-Type": "application/json"}
     data = {"email": credentials.email, "password": credentials.password}
     
     response = requests.post(url, headers=headers, json=data)
     
-    if response.status_code == 200:
-        return response.json() # This hands the secure token back to the website!
-    else:
+    if response.status_code != 200:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
+        
+    auth_data = response.json()
     
+    # Check the profiles table to see what role this email has
+    role_url = f"{SUPABASE_URL}/rest/v1/profiles?email=eq.{credentials.email}&select=role"
+    role_res = requests.get(role_url, headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"})
+    
+    user_role = "sales" # Default fallback
+    if role_res.status_code == 200 and len(role_res.json()) > 0:
+        user_role = role_res.json()[0]["role"]
+        
+    # Attach the role to the data we send back to the website
+    auth_data["role"] = user_role
+    return auth_data
+
+
 def verify_real_owner(request: Request):
-    """The Real Bouncer: Checks if the token is mathematically valid via Supabase."""
+    """The Real Bouncer: Checks token validity AND verifies they have the 'owner' role."""
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bouncer says: No secure ID provided.")
     
-    # Extract the token from the "Bearer <token>" string
     token = auth_header.split(" ")[1]
     
-    # Ask the Supabase Auth server if this token is legit
+    # 1. Verify token is real
     url = f"{SUPABASE_URL}/auth/v1/user"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {token}"
-    }
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {token}"}
     response = requests.get(url, headers=headers)
     
     if response.status_code != 200:
         raise HTTPException(status_code=401, detail="Bouncer says: Fake or expired ID. Access Denied.")
+        
+    user_email = response.json().get("email")
+    
+    # 2. Verify role is exactly 'owner'
+    role_url = f"{SUPABASE_URL}/rest/v1/profiles?email=eq.{user_email}&select=role"
+    role_res = requests.get(role_url, headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"})
+    
+    if role_res.status_code != 200 or len(role_res.json()) == 0 or role_res.json()[0]["role"] != "owner":
+        raise HTTPException(status_code=403, detail="Bouncer says: Only the Owner can do this.")
     
 @app.get("/products")
 def fetch_catalog():
@@ -68,22 +110,30 @@ def fetch_catalog():
     products = get_all_products()
     return {"status": "success", "data": products}
 
-# 1. Define what a single item in the cart looks like
+# Cart Item Structure
 class CartItem(BaseModel):
     id: int
     name: str
     price_cny: float
     qty: int
 
-# 2. Define what the entire invoice payload looks like
+# Payload Structure for the entire invoice submission
 class InvoicePayload(BaseModel):
+    customer_name: str
     exchange_rate_used: float
     items: List[CartItem]
     subtotal_idr: float
     service_fee_idr: float
     final_total_idr: float
 
-# 3. The Endpoint that catches the data from the website
+class ProductInput(BaseModel):
+    name: str
+    price_cny: float
+
+class CustomerInput(BaseModel):
+    name: str
+
+# The Endpoint that catches the data from the website
 @app.post("/submit-invoice")
 def submit_cart_invoice(payload: InvoicePayload):
     """Catches the cart data from the frontend and saves it to Supabase."""
@@ -149,4 +199,27 @@ def fetch_approved():
     """Endpoint for the Owner to see printable invoices."""
     invoices = get_approved_invoices()
     return {"status": "success", "data": invoices}
+
+@app.post("/products")
+def add_product(product: ProductInput):
+    success = add_product_to_db(product.name, product.price_cny)
+    if success: return {"status": "success", "message": "Product added!"}
+    raise HTTPException(status_code=400, detail="Failed to add product.")
+
+@app.delete("/products/{product_id}")
+def delete_product(product_id: int):
+    success = delete_product_from_db(product_id)
+    if success: return {"status": "success", "message": "Product deleted!"}
+    raise HTTPException(status_code=400, detail="Failed to delete product.")
+
+@app.get("/customers")
+def fetch_customers():
+    customers = get_customers_with_counts()
+    return {"status": "success", "data": customers}
+
+@app.post("/customers")
+def add_customer(customer: CustomerInput):
+    success = add_customer_to_db(customer.name)
+    if success: return {"status": "success", "message": "Customer added!"}
+    raise HTTPException(status_code=400, detail="Failed or duplicate customer.")
 
