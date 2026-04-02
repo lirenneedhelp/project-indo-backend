@@ -37,8 +37,10 @@ def register_user(credentials: LoginCredentials):
     res = requests.post(url, headers=headers, json=data)
     
     if res.status_code != 200:
-        raise HTTPException(status_code=400, detail="Registration failed. Email may already be in use.")
-        
+        error_data = res.json()
+        real_message = error_data.get("msg", error_data.get("error_description", "Registration failed."))
+        raise HTTPException(status_code=400, detail=f"Registration Error: {real_message}")  
+          
     # 2. Add their email to our profiles table with the default 'sales' role
     profile_url = f"{SUPABASE_URL}/rest/v1/profiles"
     profile_headers = {
@@ -120,6 +122,7 @@ class CartItem(BaseModel):
 # Payload Structure for the entire invoice submission
 class InvoicePayload(BaseModel):
     customer_name: str
+    sales_rep_email: str
     exchange_rate_used: float
     items: List[CartItem]
     subtotal_idr: float
@@ -212,6 +215,12 @@ def delete_product(product_id: int):
     if success: return {"status": "success", "message": "Product deleted!"}
     raise HTTPException(status_code=400, detail="Failed to delete product.")
 
+@app.put("/products/{product_id}")
+def update_product(product_id: int, product: ProductInput):
+    success = update_product_in_db(product_id, product.name, product.price_cny)
+    if success: return {"status": "success", "message": "Product updated!"}
+    raise HTTPException(status_code=400, detail="Failed to update product.")
+
 @app.get("/customers")
 def fetch_customers():
     customers = get_customers_with_counts()
@@ -223,3 +232,23 @@ def add_customer(customer: CustomerInput):
     if success: return {"status": "success", "message": "Customer added!"}
     raise HTTPException(status_code=400, detail="Failed or duplicate customer.")
 
+class FreightInput(BaseModel):
+    service_name: str
+    price_idr: float
+
+@app.get("/freight")
+def get_freight():
+    data = get_freight_from_db()
+    return {"status": "success", "data": data}
+
+@app.post("/freight")
+def add_freight(freight: FreightInput):
+    success = add_freight_to_db(freight.service_name, freight.price_idr)
+    if success: return {"status": "success", "message": "Freight service added!"}
+    raise HTTPException(status_code=400, detail="Failed to add freight service.")
+
+@app.delete("/freight/{freight_id}")
+def delete_freight(freight_id: int):
+    success = delete_freight_from_db(freight_id)
+    if success: return {"status": "success", "message": "Freight service deleted!"}
+    raise HTTPException(status_code=400, detail="Failed to delete freight service.")

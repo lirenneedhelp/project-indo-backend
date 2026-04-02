@@ -175,7 +175,6 @@ def get_approved_invoices():
     return []
 
 def add_product_to_db(name, price_cny):
-    """Adds a new item to the product catalog."""
     url = f"{SUPABASE_URL}/rest/v1/products"
     headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
     payload = {"product_name": name, "price_cny": price_cny}
@@ -188,6 +187,14 @@ def delete_product_from_db(product_id):
     headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
     response = requests.delete(url, headers=headers)
     return response.status_code == 204
+
+def update_product_in_db(product_id, name, price_cny):
+    """Updates an existing item in the catalog."""
+    url = f"{SUPABASE_URL}/rest/v1/products?id=eq.{product_id}"
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
+    payload = {"product_name": name, "price_cny": price_cny}
+    response = requests.patch(url, headers=headers, json=payload)
+    return response.status_code == 204 or response.status_code == 200
 
 def add_customer_to_db(name):
     """Adds a new customer name to the CRM list."""
@@ -223,3 +230,22 @@ def get_customers_with_counts():
         c["purchase_count"] = purchase_counts.get(c["name"], 0)
         
     return customers
+
+def get_freight_from_db():
+    url = f"{SUPABASE_URL}/rest/v1/freight_services?select=*"
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+    response = requests.get(url, headers=headers)
+    return response.json() if response.status_code == 200 else []
+
+def add_freight_to_db(name, price_idr):
+    url = f"{SUPABASE_URL}/rest/v1/freight_services"
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
+    payload = {"service_name": name, "price_idr": price_idr}
+    response = requests.post(url, headers=headers, json=payload)
+    return response.status_code == 201
+
+def delete_freight_from_db(freight_id):
+    url = f"{SUPABASE_URL}/rest/v1/freight_services?id=eq.{freight_id}"
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+    response = requests.delete(url, headers=headers)
+    return response.status_code == 204
