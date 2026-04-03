@@ -26,9 +26,18 @@ class LoginCredentials(BaseModel):
     email: str
     password: str
 
+class RegisterCredentials(BaseModel):
+    email: str
+    password: str
+    company_code: str
+
 @app.post("/register")
-def register_user(credentials: LoginCredentials):
+def register_user(credentials: RegisterCredentials):
     """Registers a new employee and automatically assigns them the 'sales' role."""
+    
+    EXPECTED_CODE = os.getenv("COMPANY_CODE")
+    if credentials.company_code != EXPECTED_CODE:
+        raise HTTPException(status_code=403, detail="Invalid Company Access Code.")
     
     # 1. Tell Supabase Auth to create the secure user credentials
     url = f"{SUPABASE_URL}/auth/v1/signup"
