@@ -205,7 +205,7 @@ def add_customer_to_db(name):
     return response.status_code == 201
 
 def get_customers_with_counts():
-    """Fetches customers and dynamically counts their approved invoices."""
+    """Fetches customers, counts invoices, and extracts their Custom ID codes."""
     headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
     
     # 1. Get the list of names
@@ -213,21 +213,32 @@ def get_customers_with_counts():
     if customers_res.status_code != 200: return []
     customers = customers_res.json()
 
-    # 2. Get all APPROVED invoices to count them
-    invoices_res = requests.get(f"{SUPABASE_URL}/rest/v1/invoices?status=eq.approved&select=invoice_data", headers=headers)
+    # 2. Get all APPROVED invoices (ordered oldest to newest so the last one overwrites)
+    invoices_res = requests.get(f"{SUPABASE_URL}/rest/v1/invoices?status=eq.approved&select=invoice_data&order=id.asc", headers=headers)
     invoices = invoices_res.json() if invoices_res.status_code == 200 else []
 
-    # 3. Tally up the purchases
     purchase_counts = {}
+    last_codes = {}
+    
     for inv in invoices:
-        # We look inside the JSON payload for the customer's name
-        c_name = inv.get("invoice_data", {}).get("customer_name")
+        data = inv.get("invoice_data", {})
+        c_name = data.get("customer_name")
+        
         if c_name:
+            # Tally the purchases
             purchase_counts[c_name] = purchase_counts.get(c_name, 0) + 1
+            
+            # Extract the 3-digit code from the string (e.g., "GC / X / 001 / 5")
+            custom_id = data.get("custom_invoice_id", "")
+            if custom_id:
+                parts = custom_id.split("/")
+                if len(parts) >= 3:
+                    last_codes[c_name] = parts[2].strip() # Saves "001"
 
-    # 4. Attach the count to the customer data
+    # 3. Attach the count and the code to the customer data
     for c in customers:
         c["purchase_count"] = purchase_counts.get(c["name"], 0)
+        c["customer_code"] = last_codes.get(c["name"], "")
         
     return customers
 

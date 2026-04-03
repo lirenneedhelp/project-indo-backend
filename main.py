@@ -15,7 +15,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[f"{WEBSITE_URL}"],
+    allow_origins=[WEBSITE_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -117,7 +117,8 @@ class CartItem(BaseModel):
     id: int
     name: str
     price_cny: float
-    qty: int
+    qty: float
+    isIdr: bool = False
 
 # Payload Structure for the entire invoice submission
 class InvoicePayload(BaseModel):
@@ -128,6 +129,7 @@ class InvoicePayload(BaseModel):
     subtotal_idr: float
     service_fee_idr: float
     final_total_idr: float
+    custom_invoice_id: str = ""
 
 class ProductInput(BaseModel):
     name: str
