@@ -8,16 +8,14 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
+# Load url from .env
+WEBSITE_URL = os.getenv("NETLIFY_URL", "http://localhost:8000")
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8000",           # For local testing
-        "http://127.0.0.1:8000",           # For local testing
-        "https://go-cargo-id.netlify.app"  # For Production (Netlify)
-    ],
+    allow_origins=[WEBSITE_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
