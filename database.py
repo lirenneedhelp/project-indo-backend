@@ -17,7 +17,7 @@ def save_invoice_to_db(invoice_data):
     # We target the specific table we created: 'invoices'
     endpoint = f"{SUPABASE_URL}/rest/v1/invoices"
     
-    # 2. Set up our security badges
+    # Set up our security badges
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -25,13 +25,13 @@ def save_invoice_to_db(invoice_data):
         "Prefer": "return=minimal" # Tells Supabase we just want a success code back
     }
 
-    # 3. Format the data to match your database column (invoice_data)
+    # Format the data to match your database column (invoice_data)
     payload = {
         "invoice_data": invoice_data
     }
     
     try:
-        # 4. Fire the messenger! 
+        # Fire the messenger! 
         response = requests.post(endpoint, headers=headers, json=payload)
         response.raise_for_status() 
         print("✅ Invoice successfully saved to Supabase!")
@@ -208,12 +208,12 @@ def get_customers_with_counts():
     """Fetches customers, counts invoices, and extracts their Custom ID codes."""
     headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
     
-    # 1. Get the list of names
+    # Get the list of names
     customers_res = requests.get(f"{SUPABASE_URL}/rest/v1/customers?select=*", headers=headers)
     if customers_res.status_code != 200: return []
     customers = customers_res.json()
 
-    # 2. Get all APPROVED invoices (ordered oldest to newest so the last one overwrites)
+    # Get all APPROVED invoices (ordered oldest to newest so the last one overwrites)
     invoices_res = requests.get(f"{SUPABASE_URL}/rest/v1/invoices?status=eq.approved&select=invoice_data&order=id.asc", headers=headers)
     invoices = invoices_res.json() if invoices_res.status_code == 200 else []
 
@@ -235,7 +235,7 @@ def get_customers_with_counts():
                 if len(parts) >= 3:
                     last_codes[c_name] = parts[2].strip() # Saves "001"
 
-    # 3. Attach the count and the code to the customer data
+    # Attach the count and the code to the customer data
     for c in customers:
         c["purchase_count"] = purchase_counts.get(c["name"], 0)
         c["customer_code"] = last_codes.get(c["name"], "")
